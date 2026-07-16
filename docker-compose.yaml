@@ -1,10 +1,10 @@
 services:
-  tap-tap-quizz:
+  TapTapQuizz:
     build: .
-    container_name: tap-tap-quizz
+    container_name: TapTapQuizz
     restart: unless-stopped
     env_file:
       - .env
     volumes:
-      - /mnt/data/Bots/tap-tap-quizz/data:/app/data
-      - /mnt/data/Bots/tap-tap-quizz/images:/app/resources/images:ro
+      - /mnt/data/Bots/TapTapQuizz/data:/app/data
+      - /mnt/data/Bots/TapTapQuizz/resources/images:/app/resources/images:ro
