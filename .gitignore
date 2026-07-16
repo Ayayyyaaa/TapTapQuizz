@@ -2,7 +2,11 @@
 __pycache__/
 *.py[codz]
 *$py.class
-
+.env
+data/*
+!data/.gitkeep
+resources/images/*
+!resources/images/.gitkeep
 # C extensions
 *.so
 
