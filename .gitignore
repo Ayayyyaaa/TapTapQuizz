@@ -5,8 +5,6 @@ __pycache__/
 .env
 data/*
 !data/.gitkeep
-resources/images/*
-!resources/images/.gitkeep
 # C extensions
 *.so
 
