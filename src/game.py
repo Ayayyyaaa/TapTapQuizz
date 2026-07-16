@@ -21,8 +21,8 @@ def today_str(tz_name: str) -> str:
     return datetime.now(ZoneInfo(tz_name)).strftime("%Y-%m-%d")
 
 
-class GuessModal(discord.ui.Modal, title="Qui est-ce ?"):
-    guess_input = discord.ui.TextInput(label="Nom du personnage", placeholder="Ex : Mario", max_length=50)
+class GuessModal(discord.ui.Modal, title="Who-is ?"):
+    guess_input = discord.ui.TextInput(label="Character name", placeholder="Ex : Scythe", max_length=50)
 
     def __init__(self, cog: "GameCog", guild_id: int, date_str: str, character_name: str):
         super().__init__()
@@ -45,7 +45,7 @@ class GuessView(discord.ui.View):
         self.date_str = date_str
         self.character_name = character_name
 
-    @discord.ui.button(label="Proposer une réponse", style=discord.ButtonStyle.primary, emoji="🕵️")
+    @discord.ui.button(label="Suggest an answer", style=discord.ButtonStyle.primary, emoji="🕵️")
     async def guess_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(
             GuessModal(self.cog, self.guild_id, self.date_str, self.character_name)
@@ -64,7 +64,7 @@ class GameCog(commands.Cog):
     def cog_unload(self):
         self.daily_task.cancel()
 
-    @app_commands.command(name="guess", description="Tente de deviner le personnage du jour !")
+    @app_commands.command(name="guess", description="Have a go at guessing today’s character!")
     async def guess(self, interaction: discord.Interaction):
         guild_id = interaction.guild_id
         date_str = today_str(self.bot.timezone)
@@ -72,7 +72,7 @@ class GameCog(commands.Cog):
 
         if daily is None:
             await interaction.response.send_message(
-                "Aucun défi n'est encore disponible aujourd'hui. Vérifie `/config channel`.",
+                "There are no challenges available today. Check `/config channel`.",
                 ephemeral=True,
             )
             return
@@ -83,9 +83,9 @@ class GameCog(commands.Cog):
         attempt = await self.bot.db.get_attempt(guild_id, interaction.user.id, date_str)
 
         if attempt and attempt["finished"]:
-            result = "réussi 🎉" if attempt["finished"] == 1 else "échoué 😢"
+            result = "Good answer <:top1:1527327610613530736>" if attempt["finished"] == 1 else "Failed <:secu:1527327363677945866>"
             await interaction.response.send_message(
-                f"Tu as déjà tenté ta chance aujourd'hui ({result}). Réponse : **{character_name}**. À demain !",
+                f"<:announce:1527327218500636692> You have already tried your luck today! See you tomorrow! <:calendar:1527327450823135303>",
                 ephemeral=True,
             )
             return
@@ -98,20 +98,20 @@ class GameCog(commands.Cog):
             if elapsed > 30:
                 await self.bot.db.finish_attempt(guild_id, interaction.user.id, date_str, False, 0)
                 await interaction.response.send_message(
-                    f"⏰ Trop tard ! La réponse était **{character_name}**.", ephemeral=True
+                    f"<:notif:1527327608490950717> Too late! See you tomorrow! <:calendar:1527327450823135303>", ephemeral=True
                 )
                 return
             remaining = max(1, int(30 - elapsed))
 
         path = os.path.join(self.bot.images_path, image_file)
         if not os.path.isfile(path):
-            await interaction.response.send_message("Erreur interne : image introuvable.", ephemeral=True)
+            await interaction.response.send_message("Error, no images", ephemeral=True)
             return
 
         file = discord.File(path, filename=image_file)
         embed = discord.Embed(
-            title="🕵️ Qui est-ce ?",
-            description=f"Tu as **{remaining} secondes** et jusqu'à **2 essais** pour deviner !",
+            title="<:random:1527327265166201012> Who is ?",
+            description=f"You have **{remaining} seconds** and up to **2 attempts** to guess!",
             color=discord.Color.blurple(),
         )
         embed.set_image(url=f"attachment://{image_file}")
@@ -125,7 +125,7 @@ class GameCog(commands.Cog):
 
         if attempt is None or attempt["finished"]:
             await interaction.response.send_message(
-                "Cette session de jeu n'est plus valide, relance `/guess`.", ephemeral=True
+                "Invalid, retype `/guess`.", ephemeral=True
             )
             return
 
@@ -133,7 +133,7 @@ class GameCog(commands.Cog):
         if elapsed > 30:
             await self.bot.db.finish_attempt(guild_id, user_id, date_str, False, 0)
             await interaction.response.send_message(
-                f"⏰ Trop tard ! La réponse était **{character_name}**.", ephemeral=True
+                f"<:notif:1527327608490950717> Too late! See you tomorrow! <:calendar:1527327450823135303>", ephemeral=True
             )
             return
 
@@ -144,14 +144,14 @@ class GameCog(commands.Cog):
             await self.bot.db.finish_attempt(guild_id, user_id, date_str, True, points)
             await self.bot.db.add_points(guild_id, user_id, points)
             await interaction.response.send_message(
-                f"✅ Bravo, c'était **{character_name}** ! Tu gagnes **{points} point(s)**.", ephemeral=True
+                f"<:crown:1527327497962651860> Well done, it was **{character_name}** ! You win **{points} point(s)**.", ephemeral=True
             )
             return
 
         if attempt_count >= 2:
             await self.bot.db.finish_attempt(guild_id, user_id, date_str, False, 0)
             await interaction.response.send_message(
-                f"❌ Perdu ! La réponse était **{character_name}**.", ephemeral=True
+                f"<a:poussin:1527327276524503041> Wrong ! See you tomorrow! <:calendar:1527327450823135303>", ephemeral=True
             )
             return
 
@@ -159,7 +159,7 @@ class GameCog(commands.Cog):
         remaining = max(1, int(30 - elapsed))
         view = GuessView(self, guild_id, date_str, character_name, timeout=remaining)
         await interaction.response.send_message(
-            f"❌ Mauvaise réponse. Il te reste **1 essai** ({remaining}s restantes) !",
+            f"<a:poussin:1527327276524503041> Wrong answer. You have **1 attempt** ({remaining}s) left!",
             view=view,
             ephemeral=True,
         )
@@ -197,8 +197,8 @@ class GameCog(commands.Cog):
 
             previous = await self.bot.db.get_daily(guild.id, yesterday)
             previous_text = (
-                f"Le personnage d'hier était **{previous['character_name']}** !"
-                if previous else "Pas de défi hier."
+                f"Yesterday's character was **{previous['character_name']}** !"
+                if previous else "No challenge yesterday."
             )
 
             top = await self.bot.db.get_leaderboard(guild.id, 5)
@@ -206,18 +206,18 @@ class GameCog(commands.Cog):
                 lines = []
                 for i, row in enumerate(top, start=1):
                     member = guild.get_member(row["user_id"])
-                    name = member.display_name if member else f"Utilisateur {row['user_id']}"
+                    name = member.display_name if member else f"User {row['user_id']}"
                     lines.append(f"**{i}.** {name} — {row['points']} pts")
                 leaderboard_text = "\n".join(lines)
             else:
-                leaderboard_text = "Aucun score enregistré pour l'instant."
+                leaderboard_text = "No scores have been recorded so far."
 
             embed = discord.Embed(
-                title="🎮 Nouveau défi Qui-est-ce !",
-                description=f"{previous_text}\n\nUn nouveau personnage vous attend, tentez `/guess` !",
+                title="<:announce:1527327218500636692> New 'Who's That?' challenge!",
+                description=f"{previous_text}\n\nA new character is waiting for you, type `/guess` and try to win!",
                 color=discord.Color.gold(),
             )
-            embed.add_field(name="🏆 Top 5", value=leaderboard_text, inline=False)
+            embed.add_field(name="<:top1:1527327610613530736> Top 5", value=leaderboard_text, inline=False)
 
             await channel.send(content=role_mention, embed=embed)
 

@@ -52,7 +52,7 @@ async def on_ready():
 async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
     if isinstance(error, app_commands.MissingPermissions):
         await interaction.response.send_message(
-            "❌ Tu n'as pas la permission d'utiliser cette commande.", ephemeral=True
+            "❌ You are not authorised to use this command.", ephemeral=True
         )
     else:
         raise error
