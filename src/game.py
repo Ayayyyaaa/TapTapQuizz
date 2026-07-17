@@ -33,31 +33,29 @@ def format_character_with_emoji(name: str) -> str:
 class GuessModal(discord.ui.Modal, title="Who-is ?"):
     guess_input = discord.ui.TextInput(label="Character name", placeholder="Ex : Scythe", max_length=50)
 
-    def __init__(self, cog: "GameCog", guild_id: int, date_str: str, character_name: str):
+    def __init__(self, cog: "GameCog", date_str: str, character_name: str):
         super().__init__()
         self.cog = cog
-        self.guild_id = guild_id
         self.date_str = date_str
         self.character_name = character_name
 
     async def on_submit(self, interaction: discord.Interaction):
         await self.cog.handle_guess(
-            interaction, self.guild_id, self.date_str, self.character_name, str(self.guess_input.value)
+            interaction, self.date_str, self.character_name, str(self.guess_input.value)
         )
 
 
 class GuessView(discord.ui.View):
-    def __init__(self, cog: "GameCog", guild_id: int, date_str: str, character_name: str, timeout: float):
+    def __init__(self, cog: "GameCog", date_str: str, character_name: str, timeout: float):
         super().__init__(timeout=max(timeout, 1))
         self.cog = cog
-        self.guild_id = guild_id
         self.date_str = date_str
         self.character_name = character_name
 
     @discord.ui.button(label="Suggest an answer", style=discord.ButtonStyle.primary, emoji="🕵️")
     async def guess_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(
-            GuessModal(self.cog, self.guild_id, self.date_str, self.character_name)
+            GuessModal(self.cog, self.date_str, self.character_name)
         )
 
     async def on_timeout(self):
@@ -75,9 +73,8 @@ class GameCog(commands.Cog):
 
     @app_commands.command(name="guess", description="Have a go at guessing today’s character!")
     async def guess(self, interaction: discord.Interaction):
-        guild_id = interaction.guild_id
         date_str = today_str(self.bot.timezone)
-        daily = await self.bot.db.get_daily(guild_id, date_str)
+        daily = await self.bot.db.get_daily(date_str)
 
         if daily is None:
             await interaction.response.send_message(
@@ -89,10 +86,9 @@ class GameCog(commands.Cog):
         character_name = daily["character_name"]
         image_file = daily["image_file"]
 
-        attempt = await self.bot.db.get_attempt(guild_id, interaction.user.id, date_str)
+        attempt = await self.bot.db.get_attempt(interaction.user.id, date_str)
 
         if attempt and attempt["finished"]:
-            result = "Good answer <:top1:1527327610613530736>" if attempt["finished"] == 1 else "Failed <:secu:1527327363677945866>"
             await interaction.response.send_message(
                 f"<:announce:1527327218500636692> You have already tried your luck today! See you tomorrow! <:calendar:1527327450823135303>",
                 ephemeral=True,
@@ -100,12 +96,12 @@ class GameCog(commands.Cog):
             return
 
         if attempt is None:
-            await self.bot.db.create_attempt(guild_id, interaction.user.id, date_str)
+            await self.bot.db.create_attempt(interaction.user.id, date_str)
             remaining = 30
         else:
             elapsed = time.time() - attempt["start_time"]
             if elapsed > 30:
-                await self.bot.db.finish_attempt(guild_id, interaction.user.id, date_str, False, 0)
+                await self.bot.db.finish_attempt(interaction.user.id, date_str, False, 0)
                 await interaction.response.send_message(
                     f"<:notif:1527327608490950717> Too late! See you tomorrow! <:calendar:1527327450823135303>", ephemeral=True
                 )
@@ -125,12 +121,12 @@ class GameCog(commands.Cog):
         )
         embed.set_image(url=f"attachment://{image_file}")
 
-        view = GuessView(self, guild_id, date_str, character_name, timeout=remaining)
+        view = GuessView(self, date_str, character_name, timeout=remaining)
         await interaction.response.send_message(embed=embed, file=file, view=view, ephemeral=True)
 
-    async def handle_guess(self, interaction, guild_id, date_str, character_name, guess_text):
+    async def handle_guess(self, interaction, date_str, character_name, guess_text):
         user_id = interaction.user.id
-        attempt = await self.bot.db.get_attempt(guild_id, user_id, date_str)
+        attempt = await self.bot.db.get_attempt(user_id, date_str)
 
         if attempt is None or attempt["finished"]:
             await interaction.response.send_message(
@@ -140,7 +136,7 @@ class GameCog(commands.Cog):
 
         elapsed = time.time() - attempt["start_time"]
         if elapsed > 30:
-            await self.bot.db.finish_attempt(guild_id, user_id, date_str, False, 0)
+            await self.bot.db.finish_attempt(user_id, date_str, False, 0)
             await interaction.response.send_message(
                 f"<:notif:1527327608490950717> Too late! See you tomorrow! <:calendar:1527327450823135303>", ephemeral=True
             )
@@ -150,28 +146,37 @@ class GameCog(commands.Cog):
 
         if normalize(guess_text) == normalize(character_name):
             points = 3 if attempt_count == 1 else 1
-            await self.bot.db.finish_attempt(guild_id, user_id, date_str, True, points)
-            await self.bot.db.add_points(guild_id, user_id, points)
+            await self.bot.db.finish_attempt(user_id, date_str, True, points)
+            await self.bot.db.add_points(user_id, points)
             await interaction.response.send_message(
                 f"<:crown:1527327497962651860> Well done {interaction.user.mention}, you found the daily character ! You win **{points} point(s)**.",
             )
             return
 
         if attempt_count >= 2:
-            await self.bot.db.finish_attempt(guild_id, user_id, date_str, False, 0)
+            await self.bot.db.finish_attempt(user_id, date_str, False, 0)
             await interaction.response.send_message(
                 f"<a:poussin:1527327276524503041> Wrong ! See you tomorrow! <:calendar:1527327450823135303>", ephemeral=True
             )
             return
 
-        await self.bot.db.update_attempt_count(guild_id, user_id, date_str, attempt_count)
+        await self.bot.db.update_attempt_count(user_id, date_str, attempt_count)
         remaining = max(1, int(30 - elapsed))
-        view = GuessView(self, guild_id, date_str, character_name, timeout=remaining)
+        view = GuessView(self, date_str, character_name, timeout=remaining)
         await interaction.response.send_message(
             f"<a:poussin:1527327276524503041> Wrong answer. You have **1 attempt** ({remaining}s) left!",
             view=view,
             ephemeral=True,
         )
+
+    async def _resolve_display_name(self, user_id: int) -> str:
+        user = self.bot.get_user(user_id)
+        if user is None:
+            try:
+                user = await self.bot.fetch_user(user_id)
+            except discord.HTTPException:
+                user = None
+        return user.display_name if user else f"User {user_id}"
 
     @tasks.loop(minutes=1)
     async def daily_task(self):
@@ -183,52 +188,58 @@ class GameCog(commands.Cog):
         today = now.strftime("%Y-%m-%d")
         yesterday = (now - timedelta(days=1)).strftime("%Y-%m-%d")
 
-        for guild in self.bot.guilds:
-            config = await self.bot.db.get_guild_config(guild.id)
-            if not config or not config.get("channel_id"):
-                continue
-            if await self.bot.db.get_daily(guild.id, today):
-                continue
-
-            history = await self.bot.db.get_character_history(guild.id)
+        # Le personnage du jour est global : on le tire une seule fois,
+        # partagé par tous les serveurs.
+        daily = await self.bot.db.get_daily(today)
+        if daily is None:
+            history = await self.bot.db.get_character_history()
             character_name, image_file = pick_daily_character(self.bot.images_path, history)
             if character_name is None:
+                return  # aucune image disponible
+            await self.bot.db.set_daily(today, character_name, image_file)
+            await self.bot.db.update_character_history(character_name, today)
+            daily = await self.bot.db.get_daily(today)
+
+        previous = await self.bot.db.get_daily(yesterday)
+        previous_text = (
+            f"Yesterday's character was {format_character_with_emoji(previous['character_name'])} !"
+            if previous else "No challenge yesterday."
+        )
+
+        top = await self.bot.db.get_leaderboard(5)
+        if top:
+            lines = []
+            for i, row in enumerate(top, start=1):
+                name = await self._resolve_display_name(row["user_id"])
+                lines.append(f"**{i}.** {name} — {row['points']} pts")
+            leaderboard_text = "\n".join(lines)
+        else:
+            leaderboard_text = "No scores have been recorded so far."
+
+        embed = discord.Embed(
+            title="<:announce:1527327218500636692> New 'Who's That?' challenge!",
+            description=f"{previous_text}\n\nA new character is waiting for you, type `/guess` and try to win!",
+            color=discord.Color.gold(),
+        )
+        embed.add_field(name="<:top1:1527327610613530736> Top 5 (all servers)", value=leaderboard_text, inline=False)
+
+        configs = await self.bot.db.get_all_guild_configs()
+        for gid_str, config in configs.items():
+            if not config.get("channel_id"):
+                continue
+            if config.get("last_announced") == today:
                 continue
 
-            await self.bot.db.set_daily(guild.id, today, character_name, image_file)
-            await self.bot.db.update_character_history(guild.id, character_name, today)
-
+            guild = self.bot.get_guild(int(gid_str))
+            if guild is None:
+                continue
             channel = guild.get_channel(config["channel_id"])
             if channel is None:
                 continue
 
             role_mention = f"<@&{config['role_id']}>" if config.get("role_id") else None
-
-            previous = await self.bot.db.get_daily(guild.id, yesterday)
-            previous_text = (
-                f"Yesterday's character was {format_character_with_emoji(previous['character_name'])} !"
-                if previous else "No challenge yesterday."
-            )
-
-            top = await self.bot.db.get_leaderboard(guild.id, 5)
-            if top:
-                lines = []
-                for i, row in enumerate(top, start=1):
-                    member = guild.get_member(row["user_id"])
-                    name = member.display_name if member else f"User {row['user_id']}"
-                    lines.append(f"**{i}.** {name} — {row['points']} pts")
-                leaderboard_text = "\n".join(lines)
-            else:
-                leaderboard_text = "No scores have been recorded so far."
-
-            embed = discord.Embed(
-                title="<:announce:1527327218500636692> New 'Who's That?' challenge!",
-                description=f"{previous_text}\n\nA new character is waiting for you, type `/guess` and try to win!",
-                color=discord.Color.gold(),
-            )
-            embed.add_field(name="<:top1:1527327610613530736> Top 5", value=leaderboard_text, inline=False)
-
             await channel.send(content=role_mention, embed=embed)
+            await self.bot.db.set_last_announced(int(gid_str), today)
 
     @daily_task.before_loop
     async def before_daily_task(self):
