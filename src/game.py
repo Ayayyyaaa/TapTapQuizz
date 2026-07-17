@@ -9,7 +9,7 @@ from discord import app_commands
 from discord.ext import commands, tasks
 
 from game_logic import pick_daily_character
-from src.emojis import characters as character_emojis
+from .emojis import characters as character_emojis
 
 
 def normalize(text: str) -> str:
@@ -26,7 +26,7 @@ def format_character_with_emoji(name: str) -> str:
     """Retourne le nom du perso, précédé de son gif s'il existe dans emojis.py."""
     emoji = character_emojis.get(name.lower())
     if emoji:
-        return f"**{name}** {emoji}"
+        return f"{emoji} **{name}**"
     return f"**{name}**"
 
 
