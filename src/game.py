@@ -9,6 +9,7 @@ from discord import app_commands
 from discord.ext import commands, tasks
 
 from game_logic import pick_daily_character
+from emojis import characters as character_emojis
 
 
 def normalize(text: str) -> str:
@@ -19,6 +20,14 @@ def normalize(text: str) -> str:
 
 def today_str(tz_name: str) -> str:
     return datetime.now(ZoneInfo(tz_name)).strftime("%Y-%m-%d")
+
+
+def format_character_with_emoji(name: str) -> str:
+    """Retourne le nom du perso, précédé de son gif s'il existe dans emojis.py."""
+    emoji = character_emojis.get(name.lower())
+    if emoji:
+        return f"**{name}** {emoji}"
+    return f"**{name}**"
 
 
 class GuessModal(discord.ui.Modal, title="Who-is ?"):
@@ -144,7 +153,7 @@ class GameCog(commands.Cog):
             await self.bot.db.finish_attempt(guild_id, user_id, date_str, True, points)
             await self.bot.db.add_points(guild_id, user_id, points)
             await interaction.response.send_message(
-                f"<:crown:1527327497962651860> Well done, it was **{character_name}** ! You win **{points} point(s)**.", ephemeral=True
+                f"<:crown:1527327497962651860> Well done {interaction.user.mention}, you found the daily character ! You win **{points} point(s)**.",
             )
             return
 
@@ -197,7 +206,7 @@ class GameCog(commands.Cog):
 
             previous = await self.bot.db.get_daily(guild.id, yesterday)
             previous_text = (
-                f"Yesterday's character was **{previous['character_name']}** !"
+                f"Yesterday's character was {format_character_with_emoji(previous['character_name'])} !"
                 if previous else "No challenge yesterday."
             )
 
