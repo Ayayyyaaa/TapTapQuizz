@@ -30,6 +30,7 @@ class QuiEstCeBot(commands.Bot):
 
     async def setup_hook(self):
         await self.db.connect()
+        await self.load_extension("src.leaderboard")
         await self.load_extension("src.admin")
         await self.load_extension("src.game")
         await self.load_extension("src.leaderboard")
