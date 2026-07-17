@@ -154,6 +154,12 @@ class JSONStore:
             await self._save()
 
     # ---------- Tentatives (globales, communes à tous les serveurs) ----------
+    async def get_attempts_for_date(self, date_str: str) -> dict:
+        """Retourne {user_id_str: {attempt_count, start_time, finished, points_earned}} pour une date donnée."""
+        async with self._lock:
+            day = self._data["attempts"].get(date_str, {})
+            return {uid: dict(entry) for uid, entry in day.items()}
+
     async def get_attempt(self, user_id: int, date_str: str):
         async with self._lock:
             day = self._data["attempts"].get(date_str, {})
