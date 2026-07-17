@@ -74,7 +74,7 @@ class LeaderboardCog(commands.Cog):
             lines.append(f"- **{name}** {status}")
 
         embed = discord.Embed(
-            title=f"<:announce:1527327218500636692> Attendance on {date_str} ({len(attempts)})",
+            title=f"<:announce:1527327218500636692> Attendance on {date_str} || **({len(attempts)})**",
             description="\n".join(lines),
             color=discord.Color.green(),
         )
