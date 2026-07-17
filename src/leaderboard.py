@@ -42,8 +42,8 @@ class LeaderboardCog(commands.Cog):
         )
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.command(name="participation", description="Shows who played and the result for a given day")
-    @app_commands.describe(day="Date in YYYY-MM-DD format (default: today)")
+    @app_commands.command(name="participation", description="Affiche qui a joué et le résultat pour un jour donné")
+    @app_commands.describe(day="Date au format AAAA-MM-JJ (par défaut : aujourd'hui)")
     async def participation(self, interaction: discord.Interaction, day: str = None):
         date_str = day or today_str(self.bot.timezone)
 
@@ -51,48 +51,33 @@ class LeaderboardCog(commands.Cog):
             datetime.strptime(date_str, "%Y-%m-%d")
         except ValueError:
             await interaction.response.send_message(
-                "Invalid date format; please use YYYY-MM-DD (e.g. 2026-07-17).", ephemeral=True
+                "Format de date invalide, utilisez AAAA-MM-JJ (ex : 2026-07-17).", ephemeral=True
             )
             return
 
         attempts = await self.bot.db.get_attempts_for_date(date_str)
         if not attempts:
             await interaction.response.send_message(
-                f"No one has played the **{date_str}**.", ephemeral=True
+                f"Personne n'a encore joué le **{date_str}**.", ephemeral=True
             )
             return
 
-        found, failed, pending = [], [], []
+        lines = []
         for uid_str, entry in attempts.items():
             name = await self._resolve_display_name(int(uid_str))
             if entry["finished"] == 1:
-                found.append(f"**{name}** ({entry['points_earned']} pt(s))")
+                status = "✅"
             elif entry["finished"] == 2:
-                failed.append(f"**{name}**")
+                status = "❌"
             else:
-                pending.append(f"**{name}**")
+                status = "<:notif:1527327608490950717>"
+            lines.append(f"- **{name}** {status}")
 
         embed = discord.Embed(
-            title=f"<:announce:1527327218500636692> Attendance on {date_str}",
+            title=f"<:announce:1527327218500636692> Attendance on {date_str} ({len(attempts)})",
+            description="\n".join(lines),
             color=discord.Color.green(),
         )
-        embed.add_field(
-            name=f"<:crown:1527327497962651860> Found ({len(found)})",
-            value="\n".join(found) if found else "—",
-            inline=False,
-        )
-        embed.add_field(
-            name=f"<:secu:1527327363677945866> Failed ({len(failed)})",
-            value="\n".join(failed) if failed else "—",
-            inline=False,
-        )
-        if pending:
-            embed.add_field(
-                name=f"<:notif:1527327608490950717> Not finished ({len(pending)})",
-                value="\n".join(pending),
-                inline=False,
-            )
-
         await interaction.response.send_message(embed=embed)
 
 
