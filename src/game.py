@@ -26,7 +26,7 @@ def format_character_with_emoji(name: str) -> str:
     """Retourne le nom du perso, précédé de son gif s'il existe dans emojis.py."""
     emoji = character_emojis.get(name.lower())
     if emoji:
-        return f"{emoji} **{name}**"
+        return f"**{name}** {emoji}"
     return f"**{name}**"
 
 
