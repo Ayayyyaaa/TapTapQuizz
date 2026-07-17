@@ -14,6 +14,9 @@ IMAGES_PATH = os.getenv("IMAGES_PATH", "resources/images")
 TIMEZONE = os.getenv("TIMEZONE", "Europe/Paris")
 DAILY_HOUR = int(os.getenv("DAILY_HOUR", "9"))
 DAILY_MINUTE = int(os.getenv("DAILY_MINUTE", "0"))
+# Optionnel : ID d'un serveur de test pour une synchro INSTANTANEE des
+# commandes (au lieu d'attendre jusqu'à 1h pour la propagation globale).
+DEV_GUILD_ID = os.getenv("DEV_GUILD_ID")
 
 intents = discord.Intents.default()
 intents.members = True
@@ -30,11 +33,25 @@ class QuiEstCeBot(commands.Bot):
 
     async def setup_hook(self):
         await self.db.connect()
-        await self.load_extension("src.leaderboard")
         await self.load_extension("src.admin")
         await self.load_extension("src.game")
         await self.load_extension("src.leaderboard")
-        await self.tree.sync()
+
+        # Sync globale (peut prendre jusqu'à 1h pour apparaître partout
+        # pour une commande toute nouvelle).
+        synced_global = await self.tree.sync()
+        print(f"[sync] {len(synced_global)} commande(s) globale(s) : "
+              f"{', '.join(c.name for c in synced_global)}")
+
+        # Sync instantanée sur un serveur de test si DEV_GUILD_ID est défini,
+        # pratique pour vérifier immédiatement qu'une nouvelle commande
+        # (ex : /participation) apparaît bien.
+        if DEV_GUILD_ID:
+            guild = discord.Object(id=int(DEV_GUILD_ID))
+            self.tree.copy_global_to(guild=guild)
+            synced_guild = await self.tree.sync(guild=guild)
+            print(f"[sync] {len(synced_guild)} commande(s) sur le serveur de "
+                  f"test {DEV_GUILD_ID} : {', '.join(c.name for c in synced_guild)}")
 
     async def close(self):
         await self.db.close()
