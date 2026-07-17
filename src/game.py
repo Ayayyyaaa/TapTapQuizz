@@ -9,7 +9,7 @@ from discord import app_commands
 from discord.ext import commands, tasks
 
 from game_logic import pick_daily_character
-from emojis import characters as character_emojis
+from src.emojis import characters as character_emojis
 
 
 def normalize(text: str) -> str:
