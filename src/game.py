@@ -97,16 +97,16 @@ class GameCog(commands.Cog):
 
         if attempt is None:
             await self.bot.db.create_attempt(interaction.user.id, date_str)
-            remaining = 30
+            remaining = 45
         else:
             elapsed = time.time() - attempt["start_time"]
-            if elapsed > 30:
+            if elapsed > 45:
                 await self.bot.db.finish_attempt(interaction.user.id, date_str, False, 0)
                 await interaction.response.send_message(
                     f"<:notif:1527327608490950717> Too late! See you tomorrow! <:calendar:1527327450823135303>", ephemeral=True
                 )
                 return
-            remaining = max(1, int(30 - elapsed))
+            remaining = max(1, int(45 - elapsed))
 
         path = os.path.join(self.bot.images_path, image_file)
         if not os.path.isfile(path):
@@ -135,7 +135,7 @@ class GameCog(commands.Cog):
             return
 
         elapsed = time.time() - attempt["start_time"]
-        if elapsed > 30:
+        if elapsed > 45:
             await self.bot.db.finish_attempt(user_id, date_str, False, 0)
             await interaction.response.send_message(
                 f"<:notif:1527327608490950717> Too late! See you tomorrow! <:calendar:1527327450823135303>", ephemeral=True
@@ -161,7 +161,7 @@ class GameCog(commands.Cog):
             return
 
         await self.bot.db.update_attempt_count(user_id, date_str, attempt_count)
-        remaining = max(1, int(30 - elapsed))
+        remaining = max(1, int(45 - elapsed))
         view = GuessView(self, date_str, character_name, timeout=remaining)
         await interaction.response.send_message(
             f"<a:poussin:1527327276524503041> Wrong answer. You have **1 attempt** ({remaining}s) left!",

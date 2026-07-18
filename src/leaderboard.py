@@ -42,8 +42,8 @@ class LeaderboardCog(commands.Cog):
         )
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.command(name="participation", description="Affiche qui a joué et le résultat pour un jour donné")
-    @app_commands.describe(day="Date au format AAAA-MM-JJ (par défaut : aujourd'hui)")
+    @app_commands.command(name="participation", description="Shows who played and the result for a given day")
+    @app_commands.describe(day="Date in YYYY-MM-DD format (default: today)")
     async def participation(self, interaction: discord.Interaction, day: str = None):
         date_str = day or today_str(self.bot.timezone)
 
@@ -51,14 +51,14 @@ class LeaderboardCog(commands.Cog):
             datetime.strptime(date_str, "%Y-%m-%d")
         except ValueError:
             await interaction.response.send_message(
-                "Format de date invalide, utilisez AAAA-MM-JJ (ex : 2026-07-17).", ephemeral=True
+                "Invalid date format; please use YYYY-MM-DD (e.g. 2026-07-17).", ephemeral=True
             )
             return
 
         attempts = await self.bot.db.get_attempts_for_date(date_str)
         if not attempts:
             await interaction.response.send_message(
-                f"Personne n'a encore joué le **{date_str}**.", ephemeral=True
+                f"No one has played on the **{date_str}**.", ephemeral=True
             )
             return
 
