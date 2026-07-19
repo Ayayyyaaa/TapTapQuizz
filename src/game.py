@@ -1,3 +1,4 @@
+import asyncio
 import os
 import time
 import unicodedata
@@ -66,10 +67,37 @@ class GuessView(discord.ui.View):
 class GameCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.countdown_tasks: dict[int, asyncio.Task] = {}
         self.daily_task.start()
 
     def cog_unload(self):
         self.daily_task.cancel()
+        for task in self.countdown_tasks.values():
+            task.cancel()
+
+    def _cancel_countdown(self, user_id: int):
+        task = self.countdown_tasks.pop(user_id, None)
+        if task and not task.done():
+            task.cancel()
+
+    async def _run_countdown(self, interaction: discord.Interaction, view: discord.ui.View, render, remaining: int):
+        """Edits the ephemeral message once per second to show a live countdown."""
+        try:
+            for sec in range(remaining, 0, -1):
+                try:
+                    await interaction.edit_original_response(**render(sec))
+                except discord.HTTPException:
+                    return
+                await asyncio.sleep(1)
+
+            for item in view.children:
+                item.disabled = True
+            try:
+                await interaction.edit_original_response(view=view, **render(0))
+            except discord.HTTPException:
+                pass
+        except asyncio.CancelledError:
+            pass
 
     @app_commands.command(name="guess", description="Have a go at guessing today’s character!")
     async def guess(self, interaction: discord.Interaction):
@@ -114,19 +142,37 @@ class GameCog(commands.Cog):
             return
 
         file = discord.File(path, filename=image_file)
-        embed = discord.Embed(
-            title="<:random:1527327265166201012> Who is ?",
-            description=f"You have **{remaining} seconds** and up to **2 attempts** to guess!",
-            color=discord.Color.blurple(),
-        )
-        embed.set_image(url=f"attachment://{image_file}")
+
+        def render(sec: int):
+            if sec <= 0:
+                embed = discord.Embed(
+                    title="<:random:1527327265166201012> Who is ?",
+                    description=f"<:notif:1527327608490950717> Too late! See you tomorrow! <:calendar:1527327450823135303>",
+                    color=discord.Color.red(),
+                )
+            else:
+                unit = "second" if sec == 1 else "seconds"
+                embed = discord.Embed(
+                    title="<:random:1527327265166201012> Who is ?",
+                    description=f"You have **{sec} {unit}** and up to **2 attempts** to guess!",
+                    color=discord.Color.blurple(),
+                )
+            embed.set_image(url=f"attachment://{image_file}")
+            return {"embed": embed}
 
         view = GuessView(self, date_str, character_name, timeout=remaining)
-        await interaction.response.send_message(embed=embed, file=file, view=view, ephemeral=True)
+        self._cancel_countdown(interaction.user.id)
+        await interaction.response.send_message(**render(remaining), file=file, view=view, ephemeral=True)
+
+        task = asyncio.create_task(self._run_countdown(interaction, view, render, remaining))
+        self.countdown_tasks[interaction.user.id] = task
 
     async def handle_guess(self, interaction, date_str, character_name, guess_text):
         user_id = interaction.user.id
         attempt = await self.bot.db.get_attempt(user_id, date_str)
+
+        # Stop live-updating the previous message: a new state is about to be shown.
+        self._cancel_countdown(user_id)
 
         if attempt is None or attempt["finished"]:
             await interaction.response.send_message(
@@ -163,11 +209,18 @@ class GameCog(commands.Cog):
         await self.bot.db.update_attempt_count(user_id, date_str, attempt_count)
         remaining = max(1, int(45 - elapsed))
         view = GuessView(self, date_str, character_name, timeout=remaining)
-        await interaction.response.send_message(
-            f"<a:poussin:1527327276524503041> Wrong answer. You have **1 attempt** ({remaining}s) left!",
-            view=view,
-            ephemeral=True,
-        )
+
+        def render(sec: int):
+            if sec <= 0:
+                content = f"<:notif:1527327608490950717> Too late! See you tomorrow! <:calendar:1527327450823135303>"
+            else:
+                content = f"<a:poussin:1527327276524503041> Wrong answer. You have **1 attempt** ({sec}s) left!"
+            return {"content": content}
+
+        await interaction.response.send_message(**render(remaining), view=view, ephemeral=True)
+
+        task = asyncio.create_task(self._run_countdown(interaction, view, render, remaining))
+        self.countdown_tasks[user_id] = task
 
     async def _resolve_display_name(self, user_id: int) -> str:
         user = self.bot.get_user(user_id)
@@ -217,7 +270,7 @@ class GameCog(commands.Cog):
             leaderboard_text = "No scores have been recorded so far."
 
         embed = discord.Embed(
-            title="<:announce:1527327218500636692> New 'Who's That?' challenge!",
+            title="<:announce:1527327218500636692> New Taple challenge!",
             description=f"{previous_text}\n\nA new character is waiting for you, type `/guess` and try to win!",
             color=discord.Color.gold(),
         )

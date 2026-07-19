@@ -3,7 +3,7 @@ from discord import app_commands
 from discord.ext import commands
 
 
-class AdminCog(commands.GroupCog, name="config", description="Setting up the game Who's That?"):
+class AdminCog(commands.GroupCog, name="config", description="Setting up the game Taple"):
     def __init__(self, bot):
         self.bot = bot
 

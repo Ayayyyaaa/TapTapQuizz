@@ -37,15 +37,10 @@ class QuiEstCeBot(commands.Bot):
         await self.load_extension("src.game")
         await self.load_extension("src.leaderboard")
 
-        # Sync globale (peut prendre jusqu'à 1h pour apparaître partout
-        # pour une commande toute nouvelle).
         synced_global = await self.tree.sync()
         print(f"[sync] {len(synced_global)} commande(s) globale(s) : "
               f"{', '.join(c.name for c in synced_global)}")
 
-        # Sync instantanée sur un serveur de test si DEV_GUILD_ID est défini,
-        # pratique pour vérifier immédiatement qu'une nouvelle commande
-        # (ex : /participation) apparaît bien.
         if DEV_GUILD_ID:
             guild = discord.Object(id=int(DEV_GUILD_ID))
             self.tree.copy_global_to(guild=guild)

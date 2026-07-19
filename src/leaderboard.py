@@ -36,7 +36,7 @@ class LeaderboardCog(commands.Cog):
             lines.append(f"**{i}.** {name} — {row['points']} pts")
 
         embed = discord.Embed(
-            title="<:top1:1527327610613530736> Who's that ranking (all servers)",
+            title="<:top1:1527327610613530736> Taple ranking ",
             description="\n".join(lines),
             color=discord.Color.blue(),
         )
