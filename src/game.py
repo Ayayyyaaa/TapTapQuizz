@@ -12,6 +12,9 @@ from discord.ext import commands, tasks
 from game_logic import pick_daily_character
 from .emojis import characters as character_emojis
 
+# Seul cet utilisateur Discord peut ajouter des points manuellement.
+BOT_ADMIN_ID = 716927140796301312
+
 
 def normalize(text: str) -> str:
     text = text.strip().lower()
@@ -80,7 +83,15 @@ class GameCog(commands.Cog):
         if task and not task.done():
             task.cancel()
 
-    async def _run_countdown(self, interaction: discord.Interaction, view: discord.ui.View, render, remaining: int):
+    async def _run_countdown(
+        self,
+        interaction: discord.Interaction,
+        view: discord.ui.View,
+        render,
+        remaining: int,
+        user_id: int,
+        date_str: str,
+    ):
         """Edits the ephemeral message once per second to show a live countdown."""
         try:
             for sec in range(remaining, 0, -1):
@@ -89,6 +100,12 @@ class GameCog(commands.Cog):
                 except discord.HTTPException:
                     return
                 await asyncio.sleep(1)
+
+            # Le temps est écoulé : on clôture la tentative comme un échec,
+            # même si l'utilisateur n'a plus rien touché.
+            attempt = await self.bot.db.get_attempt(user_id, date_str)
+            if attempt and not attempt["finished"]:
+                await self.bot.db.finish_attempt(user_id, date_str, False, 0)
 
             for item in view.children:
                 item.disabled = True
@@ -164,8 +181,34 @@ class GameCog(commands.Cog):
         self._cancel_countdown(interaction.user.id)
         await interaction.response.send_message(**render(remaining), file=file, view=view, ephemeral=True)
 
-        task = asyncio.create_task(self._run_countdown(interaction, view, render, remaining))
+        task = asyncio.create_task(
+            self._run_countdown(interaction, view, render, remaining, interaction.user.id, date_str)
+        )
         self.countdown_tasks[interaction.user.id] = task
+
+    @app_commands.command(name="addpoints", description="[Admin] Add points to a player using their Discord ID.")
+    @app_commands.describe(discord_id="Player's Discord account ID (e.g. 347182083975806976)", points="Number of points to add")
+    async def addpoints(self, interaction: discord.Interaction, discord_id: str, points: int):
+        if interaction.user.id != BOT_ADMIN_ID:
+            await interaction.response.send_message(
+                "❌ You are not authorised to use this command.", ephemeral=True
+            )
+            return
+
+        try:
+            target_id = int(discord_id)
+        except ValueError:
+            await interaction.response.send_message(
+                "❌ Invalid Discord ID.", ephemeral=True
+            )
+            return
+
+        await self.bot.db.add_points(target_id, points)
+        display_name = await self._resolve_display_name(target_id)
+        await interaction.response.send_message(
+            f"✅ Added **{points}** point(s) to **{display_name}** (`{target_id}`).",
+            ephemeral=True,
+        )
 
     async def handle_guess(self, interaction, date_str, character_name, guess_text):
         user_id = interaction.user.id
@@ -219,7 +262,9 @@ class GameCog(commands.Cog):
 
         await interaction.response.send_message(**render(remaining), view=view, ephemeral=True)
 
-        task = asyncio.create_task(self._run_countdown(interaction, view, render, remaining))
+        task = asyncio.create_task(
+            self._run_countdown(interaction, view, render, remaining, user_id, date_str)
+        )
         self.countdown_tasks[user_id] = task
 
     async def _resolve_display_name(self, user_id: int) -> str:
@@ -270,7 +315,7 @@ class GameCog(commands.Cog):
             leaderboard_text = "No scores have been recorded so far."
 
         embed = discord.Embed(
-            title="<:announce:1527327218500636692> New Taple challenge!",
+            title="<:announce:1527327218500636692> New 'Who's That?' challenge!",
             description=f"{previous_text}\n\nA new character is waiting for you, type `/guess` and try to win!",
             color=discord.Color.gold(),
         )
