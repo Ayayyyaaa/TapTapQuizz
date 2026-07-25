@@ -92,17 +92,39 @@ class GameCog(commands.Cog):
         user_id: int,
         date_str: str,
     ):
-        """Edits the ephemeral message once per second to show a live countdown."""
-        try:
-            for sec in range(remaining, 0, -1):
-                try:
-                    await interaction.edit_original_response(**render(sec))
-                except discord.HTTPException:
-                    return
-                await asyncio.sleep(1)
+        """Live-updates the ephemeral message every second.
 
-            # Le temps est écoulé : on clôture la tentative comme un échec,
-            # même si l'utilisateur n'a plus rien touché.
+        The countdown is anchored to a real deadline (time.time() + remaining)
+        and recomputed on every tick, instead of just counting loop
+        iterations. This matters because each edit_original_response() call
+        takes a non-zero amount of time (network latency, Discord rate
+        limits...); if we naively did `sleep(1)` after every edit, that
+        latency would accumulate tick after tick and the displayed countdown
+        would drift further and further behind the real clock — showing e.g.
+        "17s left" while the real elapsed time (checked server-side against
+        attempt["start_time"]) had already passed 45s.
+        """
+        deadline = time.time() + remaining
+        last_shown = remaining
+        try:
+            while True:
+                secs_left = max(0, round(deadline - time.time()))
+                if secs_left <= 0:
+                    break
+                if secs_left != last_shown:
+                    try:
+                        await interaction.edit_original_response(**render(secs_left))
+                    except discord.HTTPException:
+                        return
+                    last_shown = secs_left
+                # On se resynchronise sur la seconde réelle suivante, en
+                # tenant compte du temps déjà consommé par l'appel d'édition
+                # ci-dessus, pour ne jamais dériver par rapport à l'horloge.
+                sleep_for = deadline - time.time() - (secs_left - 1)
+                await asyncio.sleep(max(0.05, sleep_for))
+
+            # Le temps réel est écoulé : on clôture la tentative comme un
+            # échec, même si l'utilisateur n'a plus rien touché.
             attempt = await self.bot.db.get_attempt(user_id, date_str)
             if attempt and not attempt["finished"]:
                 await self.bot.db.finish_attempt(user_id, date_str, False, 0)
