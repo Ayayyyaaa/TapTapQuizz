@@ -313,7 +313,10 @@ class GameCog(commands.Cog):
         daily = await self.bot.db.get_daily(today)
         if daily is None:
             history = await self.bot.db.get_character_history()
-            character_name, image_file = pick_daily_character(self.bot.images_path, history)
+            valid_names = {name for name, emoji in character_emojis.items() if emoji}
+            character_name, image_file = pick_daily_character(
+                self.bot.images_path, history, valid_names
+            )
             if character_name is None:
                 return  # aucune image disponible
             await self.bot.db.set_daily(today, character_name, image_file)
@@ -341,7 +344,7 @@ class GameCog(commands.Cog):
             description=f"{previous_text}\n\nA new character is waiting for you, type `/guess` and try to win!",
             color=discord.Color.gold(),
         )
-        embed.add_field(name="<:top1:1527327610613530736> Top 5 (all servers)", value=leaderboard_text, inline=False)
+        embed.add_field(name="<:top1:1527327610613530736> Top 5", value=leaderboard_text, inline=False)
 
         configs = await self.bot.db.get_all_guild_configs()
         for gid_str, config in configs.items():

@@ -18,8 +18,18 @@ def scan_characters(images_path: str) -> dict[str, list[str]]:
     return characters
 
 
-def pick_daily_character(images_path: str, history: dict[str, str]):
+def pick_daily_character(images_path: str, history: dict[str, str], valid_names: set[str] | None = None):
     characters = scan_characters(images_path)
+
+    if valid_names is not None:
+        # Ne garde que les personnages qui ont un emoji défini (et non vide)
+        # dans emojis.py. Les images sans entrée correspondante (ou avec une
+        # entrée vide comme "zaza": "") sont exclues du tirage.
+        characters = {
+            name: files for name, files in characters.items()
+            if name.lower() in valid_names
+        }
+
     if not characters:
         return None, None
 
